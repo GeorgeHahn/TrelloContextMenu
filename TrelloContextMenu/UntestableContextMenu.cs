@@ -64,7 +64,11 @@ namespace TrelloContextMenu
             var ms = new ContextMenuStrip();
 
             var trelloMenu = new ToolStripMenuItem("Trello");
-            contextMenus.ForEach(x => trelloMenu.DropDownItems.Add(x.CreateMenuItem(selectedItemPaths, folderPath)));
+            contextMenus.ForEach(x =>
+                {
+                    if (x.CanShowMenu(selectedItemPaths(), folderPath))
+                        trelloMenu.DropDownItems.Add(x.CreateMenuItem(selectedItemPaths, folderPath));
+                });
 
             ms.Items.Add(trelloMenu);
             return ms;
