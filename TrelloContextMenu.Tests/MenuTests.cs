@@ -15,31 +15,31 @@ namespace TrelloContextMenu.Tests
         [Fact]
         public void WhenASingleFileIsSelected_ContextMenuShouldShow()
         {
-            TestableContextMenu menu = new TestableContextMenu();
+            AddAsCardContextMenu menu = new AddAsCardContextMenu();
             var items = new[] { "blah.txt" };
 
-            menu.CanShowMenu(items, "", "")
+            menu.CanShowMenu(items, "")
                 .Should().BeTrue();
         }
 
         [Fact]
         public void WhenMultipleFilesAreSelected_ContextMenuShouldNotShow()
         {
-            TestableContextMenu menu = new TestableContextMenu();
+            AddAsCardContextMenu menu = new AddAsCardContextMenu();
             var items = new[] { "blah.txt", "eh.txt" };
 
-            menu.CanShowMenu(items, "", "")
+            menu.CanShowMenu(items, "")
                 .Should().BeFalse();
         }
 
         [Fact]
         public void CreatedMenuHasOnlyOneItem()
         {
-            TestableContextMenu menu = new TestableContextMenu();
+            AddAsCardContextMenu menu = new AddAsCardContextMenu();
             var items = new[] { "blah.txt" };
 
-            menu.CreateMenu(() => items, "", "")
-                .Items.Count
+            menu.CreateMenuItem(() => items, "")
+                .DropDownItems.Count
                 .Should().Be(1);
         }
     }

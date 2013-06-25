@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -7,6 +8,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Autofac;
+using Autofac.Features.ResolveAnything;
 using SharpShell;
 using SharpShell.Attributes;
 using SharpShell.SharpContextMenu;
@@ -18,50 +21,123 @@ namespace TrelloContextMenu
     [COMServerAssociation(AssociationType.ClassOfExtension, ".txt")]
     public class UntestableContextMenu : SharpContextMenu
     {
-        private readonly TestableContextMenu menu = new TestableContextMenu();
+        private readonly ContextMenuProvider provider;
+
+        public UntestableContextMenu()
+            : base()
+        {
+            provider = new ContextMenuProvider(
+                new ITestableContextMenu[]
+                    {
+                        new AddAsAttachmentContextMenu(), 
+                        new AddAsCardContextMenu()
+                    });
+        }
 
         protected override bool CanShowMenu()
         {
-            return menu.CanShowMenu(SelectedItemPaths, FolderPath, DisplayName);
+            return provider.CanShowMenu(SelectedItemPaths, FolderPath);
         }
 
         protected override ContextMenuStrip CreateMenu()
         {
-            return menu.CreateMenu(() => SelectedItemPaths, FolderPath, DisplayName);
+            return provider.CreateMenu(() => SelectedItemPaths, FolderPath);
         }
     }
 
-    public class TestableContextMenu
+    public class ContextMenuProvider
+    {
+        private readonly IEnumerable<ITestableContextMenu> contextMenus;
+
+        public ContextMenuProvider(IEnumerable<ITestableContextMenu> contextMenus)
+        {
+            this.contextMenus = contextMenus;
+        }
+
+        public bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath)
+        {
+            return contextMenus.Any(x => x.CanShowMenu(selectedItemPaths, folderPath));
+        }
+
+        public ContextMenuStrip CreateMenu(Func<IEnumerable<string>> selectedItemPaths, string folderPath)
+        {
+            var ms = new ContextMenuStrip();
+
+            var trelloMenu = new ToolStripMenuItem("Trello");
+            contextMenus.ForEach(x => trelloMenu.DropDownItems.Add(x.CreateMenuItem(selectedItemPaths, folderPath)));
+
+            ms.Items.Add(trelloMenu);
+            return ms;
+        }
+    }
+
+    public interface ITestableContextMenu
+    {
+        bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath);
+        ToolStripMenuItem CreateMenuItem(Func<IEnumerable<string>> selectedItemPaths, string folderPath);
+    }
+
+    public class AddAsCardContextMenu : ITestableContextMenu
     {
         private TrelloItemProvider trello = TrelloItemProvider.Instance;
-        
-        public bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath, string displayName)
+
+        public bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath)
         {
             return selectedItemPaths.Count(item => item.Contains(".txt")) == 1;
         }
 
-        public ContextMenuStrip CreateMenu(Func<IEnumerable<string>> selectedItemPaths, string folderPath, string displayName)
+        public ToolStripMenuItem CreateMenuItem(Func<IEnumerable<string>> selectedItemPaths, string folderPath)
         {
-            var ms = new ContextMenuStrip();
-            var trelloItem = new ToolStripMenuItem("Trello");
+            var trelloItem = new ToolStripMenuItem("Add as card");
 
             trello.GetBoardNames().ForEach(
                 boardName =>
-                    {
-                        var board = new ToolStripMenuItem(boardName);
-                        trello.GetListsForBoard(boardName).ForEach(
-                            card => board.DropDownItems.Add(card));
+                {
+                    var board = new ToolStripMenuItem(boardName);
+                    trello.GetListsForBoard(boardName).ForEach(
+                        card => board.DropDownItems.Add(card));
 
-                        board.DropDownItemClicked +=
-                            (sender, args) => TrelloItemProvider.Instance.AddCard(boardName, args.ClickedItem.Text,
-                                                                Path.GetFileNameWithoutExtension(selectedItemPaths().FirstOrDefault()),
-                                                                File.ReadAllText(selectedItemPaths().FirstOrDefault()));
+                    board.DropDownItemClicked +=
+                        (sender, args) => TrelloItemProvider.Instance.AddCard(boardName, args.ClickedItem.Text,
+                                                            Path.GetFileNameWithoutExtension(selectedItemPaths().FirstOrDefault()),
+                                                            File.ReadAllText(selectedItemPaths().FirstOrDefault()));
 
-                        trelloItem.DropDownItems.Add(board);
-                    });
+                    trelloItem.DropDownItems.Add(board);
+                });
 
-            ms.Items.Add(trelloItem);
-            return ms;
+            return trelloItem;
+        }
+    }
+
+    public class AddAsAttachmentContextMenu : ITestableContextMenu
+    {
+        private TrelloItemProvider trello = TrelloItemProvider.Instance;
+
+        public bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath)
+        {
+            return true;
+        }
+
+        public ToolStripMenuItem CreateMenuItem(Func<IEnumerable<string>> selectedItemPaths, string folderPath)
+        {
+            var trelloItem = new ToolStripMenuItem("Add as attachment");
+
+            trello.GetBoardNames().ForEach(
+                boardName =>
+                {
+                    var board = new ToolStripMenuItem(boardName);
+                    trello.GetListsForBoard(boardName).ForEach(
+                        card => board.DropDownItems.Add(card));
+
+                    board.DropDownItemClicked +=
+                        (sender, args) => TrelloItemProvider.Instance.AddCard(boardName, args.ClickedItem.Text,
+                                                            Path.GetFileNameWithoutExtension(selectedItemPaths().FirstOrDefault()),
+                                                            File.ReadAllText(selectedItemPaths().FirstOrDefault()));
+
+                    trelloItem.DropDownItems.Add(board);
+                });
+
+            return trelloItem;
         }
     }
 
@@ -71,10 +147,8 @@ namespace TrelloContextMenu
 
         private TrelloItemProvider()
         {
-            trello = new Trello("[key]");
-            var s = trello.GetAuthorizationUrl("Test", Scope.ReadWrite, Expiration.Never);
-
-            trello.Authorize("[token]");
+            trello = new Trello("key");
+            trello.Authorize("token");
         }
 
         private readonly Trello trello;
