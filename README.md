@@ -1,5 +1,4 @@
 # TrelloContextMenu #
-----------
 
 Adds a windows shell context menu for interacting with [Trello](https://trello.com/ "Trello").
 
