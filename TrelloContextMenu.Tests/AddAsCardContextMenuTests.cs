@@ -10,7 +10,7 @@ using Xunit;
 
 namespace TrelloContextMenu.Tests
 {
-    public class MenuTests
+    public class AddAsCardContextMenuTests
     {
         [Fact]
         public void WhenASingleFileIsSelected_ContextMenuShouldShow()
@@ -33,14 +33,14 @@ namespace TrelloContextMenu.Tests
         }
 
         [Fact]
-        public void CreatedMenuHasOnlyOneItem()
+        public void CreatedMenuHasAtLeastOneItem()
         {
             AddAsCardContextMenu menu = new AddAsCardContextMenu();
             var items = new[] { "blah.txt" };
 
             menu.CreateMenuItem(() => items, "")
                 .DropDownItems.Count
-                .Should().Be(1);
+                .Should().BeGreaterOrEqualTo(1);
         }
     }
 
