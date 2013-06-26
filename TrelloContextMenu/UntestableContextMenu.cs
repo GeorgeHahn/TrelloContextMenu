@@ -73,12 +73,6 @@ namespace TrelloContextMenu
         }
     }
 
-    public interface ITestableContextMenu
-    {
-        bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath);
-        ToolStripMenuItem CreateMenuItem(Func<IEnumerable<string>> selectedItemPaths, string folderPath);
-    }
-
     public class AddAsCardContextMenu : ITestableContextMenu
     {
         private TrelloItemProvider trello = TrelloItemProvider.Instance;
