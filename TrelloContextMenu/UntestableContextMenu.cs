@@ -6,7 +6,7 @@ using SharpShell.SharpContextMenu;
 namespace TrelloContextMenu
 {
     [ComVisible(true)]
-    [COMServerAssociation(AssociationType.ClassOfExtension, ".txt")]
+    [COMServerAssociation(AssociationType.AllFiles)]
     public class UntestableContextMenu : SharpContextMenu
     {
         private readonly ContextMenuProvider provider;
