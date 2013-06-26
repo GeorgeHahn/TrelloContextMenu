@@ -176,13 +176,4 @@ namespace TrelloContextMenu
                 trello.Cards.AddComment(cardid, commentText);
         }
     }
-
-    public static class IKnowItsNotFunctionalButIWantItAnyways
-    {
-        public static void ForEach<T>(this IEnumerable<T> e, Action<T> action)
-        {
-            foreach (T item in e)
-                action(item);
-        }
-    }
 }
