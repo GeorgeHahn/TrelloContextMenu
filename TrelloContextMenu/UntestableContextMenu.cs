@@ -8,8 +8,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Autofac;
-using Autofac.Features.ResolveAnything;
 using SharpShell;
 using SharpShell.Attributes;
 using SharpShell.SharpContextMenu;
