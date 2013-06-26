@@ -44,7 +44,7 @@ namespace TrelloContextMenu
 
     public class AddAsCardContextMenu : ITestableContextMenu
     {
-        private TrelloItemProvider trello = TrelloItemProvider.Instance;
+        private readonly TrelloItemProvider trello = TrelloItemProvider.Instance;
 
         public bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath)
         {
@@ -60,7 +60,7 @@ namespace TrelloContextMenu
                 {
                     var board = new ToolStripMenuItem(boardName);
                     trello.GetListsForBoard(boardName).ForEach(
-                        card => board.DropDownItems.Add(card));
+                        list => board.DropDownItems.Add(list));
 
                     board.DropDownItemClicked +=
                         (sender, args) => TrelloItemProvider.Instance.AddCard(boardName, args.ClickedItem.Text,
@@ -76,11 +76,21 @@ namespace TrelloContextMenu
 
     public class AddAsAttachmentContextMenu : ITestableContextMenu
     {
-        private TrelloItemProvider trello = TrelloItemProvider.Instance;
+        private readonly TrelloItemProvider trello = TrelloItemProvider.Instance;
 
         public bool CanShowMenu(IEnumerable<string> selectedItemPaths, string folderPath)
         {
-            return true;
+            return selectedItemPaths.All(f =>
+                {
+                    var attribs = File.GetAttributes(f);
+
+                    // Verify that no selected items are directories (although attaching entire directories could be implemented)
+                    if ((attribs & FileAttributes.Directory) != 0)
+                        return false;
+
+                    // All selected files must be less than Trello's attachment size limit (10mb)
+                    return (new FileInfo(f)).Length < 10485760;
+                });
         }
 
         public ToolStripMenuItem CreateMenuItem(Func<IEnumerable<string>> selectedItemPaths, string folderPath)
@@ -92,12 +102,20 @@ namespace TrelloContextMenu
                 {
                     var board = new ToolStripMenuItem(boardName);
                     trello.GetListsForBoard(boardName).ForEach(
-                        card => board.DropDownItems.Add(card));
+                        list =>
+                            {
+                                var listItem = (ToolStripMenuItem) board.DropDownItems.Add(list);
+                                trello.GetCardsForList(boardName, list).ForEach(
+                                    card => listItem.DropDownItems.Add(card));
 
-                    board.DropDownItemClicked +=
-                        (sender, args) => TrelloItemProvider.Instance.AddCard(boardName, args.ClickedItem.Text,
-                                                            Path.GetFileNameWithoutExtension(selectedItemPaths().FirstOrDefault()),
-                                                            File.ReadAllText(selectedItemPaths().FirstOrDefault()));
+                                // Remove empty lists (todo: refactor this along with TrelloItemProvider)
+                                if (listItem.DropDownItems.Count == 0)
+                                    board.DropDownItems.Remove(listItem);
+                                else
+                                    listItem.DropDownItemClicked += (sender, args) =>
+                                            selectedItemPaths().ForEach(file => 
+                                                TrelloItemProvider.Instance.AttachToCard(boardName, list, args.ClickedItem.Text, file));
+                            });
 
                     trelloItem.DropDownItems.Add(board);
                 });
@@ -120,29 +138,64 @@ namespace TrelloContextMenu
 
         public IEnumerable<string> GetBoardNames()
         {
-            return trello.Boards.ForMe().Select(b => b.Name);
+            return 
+                trello.Boards.ForMe()
+                .Select(b => b.Name);
         }
 
         public IEnumerable<string> GetCardsForBoard(string boardName)
         {
-            return trello.Cards.ForBoard(trello.Boards.ForMe().FirstOrDefault(b => b.Name == boardName)).Select(c => c.Name);
+            return 
+                trello.Cards.ForBoard(
+                    trello.Boards.ForMe()
+                    .FirstOrDefault(b => b.Name == boardName))
+                .Select(c => c.Name);
         }
 
         public IEnumerable<string> GetListsForBoard(string boardName)
         {
-            return trello.Lists.ForBoard(trello.Boards.ForMe().FirstOrDefault(b => b.Name == boardName))
-                      .Select(l => l.Name);
+            return 
+                trello.Lists.ForBoard(
+                    trello.Boards.ForMe()
+                    .FirstOrDefault(b => b.Name == boardName))
+                .Select(l => l.Name);
+        }
+
+        public IEnumerable<string> GetCardsForList(string boardName, string listName)
+        {
+            return
+                trello.Cards.ForList(
+                    trello.Lists.ForBoard(trello.Boards.ForMe()
+                        .FirstOrDefault(b => b.Name == boardName))
+                    .FirstOrDefault(l => l.Name == listName))
+                .Select(c => c.Name);
         }
 
         public void AddCard(string boardName, string listName, string cardName, string commentText = "")
         {
+            if(string.IsNullOrWhiteSpace(commentText))
+                throw new Exception("Cannot add empty comment");
+
             var listid = new ListId(trello.Lists.ForBoard(trello.Boards.ForMe().First(b => b.Name == boardName))
                 .First(l => l.Name == listName).GetListId());
             var card = trello.Cards.Add(cardName, listid);
             var cardid = new CardId(card.GetCardId());
             
-            if(!string.IsNullOrWhiteSpace(commentText))
-                trello.Cards.AddComment(cardid, commentText);
+            trello.Cards.AddComment(cardid, commentText);
+        }
+
+        public void AttachToCard(string boardName, string listName, string cardName, string fileToAttach)
+        {
+            if (!File.Exists(fileToAttach))
+                throw new FileNotFoundException("File not found", fileToAttach);
+
+            var listid = new ListId(trello.Lists.ForBoard(trello.Boards.ForMe().First(b => b.Name == boardName))
+                .First(l => l.Name == listName).GetListId());
+            var card = trello.Cards.ForList(listid)
+                .First(c => c.Name == cardName).GetCardId();
+            var cardid = new CardId(card);
+
+            trello.Cards.AddAttachment(cardid, new FileAttachment(fileToAttach));
         }
     }
 }
